@@ -25,7 +25,7 @@ There are three stages to this task:
 
 **Stage 2** : *BUILD* - Build a deep learning model(preferably) or any other model that suitably answers this question and predict the inferred gender using the features provided and deriving more featueres at your end. Remember, there is no gender flag, so you are flying blind here.
 
-**Stage 3** : *DELIVER* - Package all your process, findings and outputs into a reproducible document that can be understood by a business user. This **reproducible report**\* must answering the following questions:
+**Stage 3** : *DELIVER* - Package all your process, findings and code into a reproducible document that can be understood by a business user. A repo of the code branch would be a great thing to have! This **reproducible report**\* must answer the following questions:
 
 1. How did you clean the data and what was wrong with it? Close to 90% of a Data Scientist's job is in cleaning data
 2. What are the features you used as-is and which one did you engineer using the given ones? What do they mean in the real world?
@@ -40,6 +40,8 @@ There are three stages to this task:
 Also, we have a larger sample set on our end on which we can run your source code and check out the accuracy of your predictions. Think Kaggle :)
 
 ## Data
+
+The file(test_data.zip) has been super encrypted - the password to the file is "an unserialized SHA-256 hash" of the keyword you received. Reminder the password to the file is not the password shared with you but the unserialized SHA-256 hash of the password.
 
 The dataset comes from a simulated internal database that we use for assessing user behaviour. Users are randomly sampled to and anonymised, along with programatically shifting all their behavioural metrics by set deviations.
 
