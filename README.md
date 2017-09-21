@@ -4,18 +4,20 @@ Task description and data for candidates applying to be a Data Scientist in the 
 
 ## Background
 
-A lot of our customers, just like every other online customer, do not provide their age, gender or any other private details while signing up, nothing more than what is needed for being able to transact on site. All of us have done it. Respect privacy!
+Many of our customers at THE ICONIC - similar to most online shoppers - only provide the bare minimum of information needed when signing up as a new user or making a transaction on the site (i.e credit card details, delivery address etc). They do not provide their age, gender or any other personal details when they register as a new customer or they will simply purchase their items as a ‘Guest’ user.
 
-However, to be able to better tailor our site, branding strategy, marketing, product and most importantly merchandising, we need to have a better handle on the profile of our shopper - based on their implicit behaviour on site and with The Iconic.
+Respecting customer privacy is of the utmost important at THE ICONIC and we understand why some shoppers are hesitant to provide personal information. However, to be able to better tailor our site, branding strategy, marketing, product and most importantly merchandising, we need to have a better handle on the profile of our shopper and understand the things that are more relevant to them.
 
-This way, the customer gets to keep their privacy and we get to tailor our offerings more suitably to our customer's needs
+**What we have identified here is an opportunity to ‘infer’ a customer’s gender based on the amazingly rich user behavioural data, which will allow us to better tailor our site and offerings to their needs.**
 
-There are two main ways to gauge customer behaviour
+This way, the customer will be able to control their privacy and while still allowing us to tailor our offerings more suitably to our customer's needs.
 
-- *purchase behaviour*: what do they buy, how do they buy it, how often, what price points, what discount types and the like
-- *visit behaviour*: behaviour on site, the way they browse, the types of interactions and the like
+There are two main ways to gauge customer behaviour:
 
-Of course there are a host of such features that can be engineered. But for now, this should suffice. Using the dataset given, can you predict an "inferred" gender for our customers?
+- *Purchase Behaviour*: Identify what they purchase, how do they purchase it, frequency, what price points, what discount types resonate etc.
+- *Visit Behaviour*: This includes behaviour on site, the way shoppers browse, the types of interactions respond to etc. 
+
+Here are a host of such features that can be engineered, but for now, this should suffice. Using the dataset given, can you predict an "inferred" gender for our customers?
 
 ## Task
 
