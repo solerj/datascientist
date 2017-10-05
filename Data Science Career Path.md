@@ -157,7 +157,7 @@ There are two types of capability that apply to each job family.
 
 ## Levels of Mastery
 
-Technical capabilities have varying levels of mastery within each role level. The 4 levels of mastery commonly used across the Civil Service were applied and are defined below (in descending order):
+Technical capabilities have varying levels of mastery within each role level. The 4 levels of mastery commonly used across the data science community were applied and are defined below (in descending order):
 
 <table align='left' style='width: 95%;'>
 	<tbody valign="top">
@@ -765,7 +765,7 @@ The levels of mastery (from awareness to expert) have been mapped against the ro
 </table>
 
 ## Core Competencies
-Core competencies have been sourced from the Civil Service Competency Framework. The following capabilities were identified as essential capabilities for the Data Scientist role. 
+Core competencies have been sourced from the business level competencies Framework. The following capabilities were identified as essential capabilities for the Data Scientist role. 
 
 <table align='left' style='width: 95%;'>
 	<tbody valign="top">
@@ -774,7 +774,7 @@ Core competencies have been sourced from the Civil Service Competency Framework.
 				<h3></h3>
 			</td>
 			<td>
-				<h3>Civil Service Competency
+				<h3>Business Level Competency
 </h3>
 			</td>
 		</tr>
@@ -784,7 +784,7 @@ Core competencies have been sourced from the Civil Service Competency Framework.
 </p>
 			</td>
 			<td>
-				<p>Seeing the big picture is about having an in-depth understanding and knowledge of how your role fits with and supports organisational objectives and the wider public needs and the national interest. For all staff, it is about focusing your contribution on the activities which will meet Civil Service goals and deliver the greatest value. For leaders, it is about scanning the political context and taking account of wider impacts to develop long term implementation strategies that maximise opportunities to add value to the citizen and support economic, sustainable growth.
+				<p>Seeing the big picture is about having an in-depth understanding and knowledge of how your role fits with and supports organisational objectives and the wider public needs and the national interest. For all staff, it is about focusing your contribution on the activities which will meet Business goals and deliver the greatest value. For leaders, it is about scanning the political context and taking account of wider impacts to develop long term implementation strategies that maximise opportunities to add value to the citizen and support economic, sustainable growth.
 </p>
 			</td>
 		</tr>
@@ -794,7 +794,7 @@ Core competencies have been sourced from the Civil Service Competency Framework.
 </p>
 			</td>
 			<td>
-				<p>People who are effective in this area take initiative, are innovative and seek out opportunities to create effective change. For all staff, it’s about learning from what has worked as well as what has not, being open to change and improvement, and working in ‘smarter’, more focused ways. For leaders, this is about creating and encouraging a culture of innovation and allowing people to consider and take informed decisions. Doing this well means continuously seeking out ways to improve policy implementation and build a leaner, more flexible and responsive Civil Service. It also means making use of alternative delivery models including digital and shared service approaches wherever possible.
+				<p>People who are effective in this area take initiative, are innovative and seek out opportunities to create effective change. For all staff, it’s about learning from what has worked as well as what has not, being open to change and improvement, and working in ‘smarter’, more focused ways. For leaders, this is about creating and encouraging a culture of innovation and allowing people to consider and take informed decisions. Doing this well means continuously seeking out ways to improve policy implementation and build a leaner, more flexible and responsive Business decision enablement. It also means making use of alternative delivery models including digital and shared service approaches wherever possible.
 </p>
 			</td>
 		</tr>
@@ -815,7 +815,7 @@ Core competencies have been sourced from the Civil Service Competency Framework.
 </p>
 				</td>
 				<td>
-					<p>People skilled in this area are team players. At all levels, it requires working collaboratively, sharing information appropriately and building supportive, trusting and professional relationships with colleagues and a wide range of people within and outside the Civil Service, whilst having the confidence to challenge assumptions. For senior leaders, it’s about being approachable, delivering business objectives through creating an inclusive environment, welcoming challenge however uncomfortable.
+					<p>People skilled in this area are team players. At all levels, it requires working collaboratively, sharing information appropriately and building supportive, trusting and professional relationships with colleagues and a wide range of people within and outside The Iconic, whilst having the confidence to challenge assumptions. For senior leaders, it’s about being approachable, delivering business objectives through creating an inclusive environment, welcoming challenge however uncomfortable.
 </p>
 				</td>
 			</tr>
@@ -835,7 +835,7 @@ Core competencies have been sourced from the Civil Service Competency Framework.
 </p>
 				</td>
 				<td>
-					<p>Delivering value for money involves the efficient, effective and economic use of taxpayers’ money in the delivery of public services. For all staff, it means seeking out and implementing solutions which achieve the best mix of quality, and effectiveness for the least outlay. People who do this well base their decisions on evidenced information and follow agreed processes and policies, challenging these appropriately where they appear to prevent good value for money. For leaders it’s about embedding a culture of value for money within their area/function. They work collaboratively across boundaries to ensure that the Civil Service maximises its strategic outcomes within the resources available.
+					<p>Delivering value for money involves the efficient, effective and economic use of taxpayers’ money in the delivery of public services. For all staff, it means seeking out and implementing solutions which achieve the best mix of quality, and effectiveness for the least outlay. People who do this well base their decisions on evidenced information and follow agreed processes and policies, challenging these appropriately where they appear to prevent good value for money. For leaders it’s about embedding a culture of value for money within their area/function. They work collaboratively across boundaries to ensure that The Iconic maximises its strategic outcomes within the resources available.
 </p>
 				</td>
 			</tr>
