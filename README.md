@@ -93,8 +93,8 @@ The dataset is currently been put in a JSON format, hashed and then compressed -
 | home_orders              | integer | Number of orders shipped to home                                         | 
 | parcelpoint_orders       | integer | Number of orders shipped to a parcelpoint                                | 
 | other_collection_orders  | integer | Number of orders shipped to other collection points                      | 
-| average_discount_onoffer | integer | Average discount rate of items typically purchased                       | 
-| average_discount_used    | integer | Average discount finally used on top of existing discount                | 
-| revenue                  | integer | $ Dollar spent overall per person                                        | 
+| average_discount_onoffer | float   | Average discount rate of items typically purchased                       | 
+| average_discount_used    | float   | Average discount finally used on top of existing discount                | 
+| revenue                  | float   | $ Dollar spent overall per person                                        | 
 
 All the best! Blow us away with your findings and accuracy!
