@@ -23,7 +23,11 @@ Here are a host of such features that can be engineered, but for now, this shoul
 
 There are four stages to this task:
 
-**Stage 1** : *SQL* - Unhash the sqlite database (`test_data.db.zip`) using the secret key provided by us, extract it. Write SQL queries to answer the following questions:
+**Stage 1** : *SQL* - A lot of our data lives in SQL databases, data scientists need to be comfortable using SQL.
+
+Unhash the sqlite database (`test_data.db.zip`) using the secret key provided by us, extract it.
+
+Write SQL queries to answer the following questions:
 
 *Note: At this stage it is ok to ignore the underlying errors in the data*
 
@@ -52,7 +56,7 @@ Also, we have a larger sample set on our end on which we can run your source cod
 
 ## Data
 
-We have provided 2 files `test_data.zip` which contains the data in json format. This should be used for stages 2 - 4. `test_data.db.zip` should be used for  contains a SQLite database which has been populated from the json data
+We have provided 2 files `test_data.zip` which contains the data in json format. This should be used for stages 2 - 4. For writing the queries we have included a SQLite database (`test_data.db.zip`) which has been populated from the json data.
 
 The files (`test_data.zip` and `test_data.db.zip`) have been super encrypted - the password to the file is "an unserialized lowercase SHA-256 hash" of the keyword you received. Reminder the password to the file is not the password shared with you but the unserialized SHA-256 hash of the password.
 
