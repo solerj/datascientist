@@ -21,13 +21,22 @@ Here are a host of such features that can be engineered, but for now, this shoul
 
 ## Task
 
-There are three stages to this task:
+There are four stages to this task:
 
-**Stage 1** : *CLEAN* - Unhash the data using the secret key provided by us, extract it, most importantly clean it and put it in a form you can use - all programatically of course. We have also "intentionally" corrupted two columns in this file - two columns that might look correct but are not correct. They need "some correction" to be useful.
+**Stage 1** : *SQL* - Unhash the sqlite database (`test_data.db.zip`) using the secret key provided by us, extract it. Write SQL queries to answer the following questions:
 
-**Stage 2** : *BUILD* - Build a deep learning model (preferably) or any other model that suitably answers this question and predict the inferred gender using the features provided and deriving more featueres at your end. Remember, there is no gender flag, so you are flying blind here.
+*Note: At this stage it is ok to ignore the underlying errors in the data*
 
-**Stage 3** : *DELIVER* - Package all your process, findings and code into a reproducible document that can be understood by a business user. A repo of the code branch would be a great thing to have! This **reproducible report**\* must answer the following questions:
+1. What was the total revenue to the nearest dollar for customers who have paid by credit card?
+2. What percentage of customers who have purchased female items have paid by credit card?
+3. What was the average revenue for customers who used either iOS, Android or Desktop?
+4. We want to run an email campaign promoting a new mens luxury brand. Can you provide a list of customers we should send to?
+
+**Stage 2** : *CLEAN* - Unhash the data (`test_data.zip`) using the secret key provided by us, extract it, most importantly clean it and put it in a form you can use - all programatically of course. We have also "intentionally" corrupted two columns in this file - two columns that might look correct but are not correct. They need "some correction" to be useful.
+
+**Stage 3** : *BUILD* - Build a deep learning model (preferably) or any other model that suitably answers this question and predict the inferred gender using the features provided and deriving more featueres at your end. Remember, there is no gender flag, so you are flying blind here.
+
+**Stage 4** : *DELIVER* - Package all your process, findings and code into a reproducible document that can be understood by a business user. A repo of the code branch would be a great thing to have! This **reproducible report**\* must answer the following questions:
 
 1. How did you clean the data and what was wrong with it? Close to 90% of a Data Scientist's job is in cleaning data
 2. What are the features you used as-is and which one did you engineer using the given ones? What do they mean in the real world?
@@ -43,7 +52,9 @@ Also, we have a larger sample set on our end on which we can run your source cod
 
 ## Data
 
-The file(test_data.zip) has been super encrypted - the password to the file is "an unserialized SHA-256 hash" of the keyword you received. Reminder the password to the file is not the password shared with you but the unserialized SHA-256 hash of the password.
+We have provided 2 files `test_data.zip` which contains the data in json format. This should be used for stages 2 - 4. `test_data.db.zip` should be used for  contains a SQLite database which has been populated from the json data
+
+The files (`test_data.zip` and `test_data.db.zip`) have been super encrypted - the password to the file is "an unserialized lowercase SHA-256 hash" of the keyword you received. Reminder the password to the file is not the password shared with you but the unserialized SHA-256 hash of the password.
 
 The dataset comes from a simulated internal database that we use for assessing user behaviour. Users are randomly sampled to and anonymised, along with programatically shifting all their behavioural metrics by set deviations.
 
@@ -51,7 +62,7 @@ TL;DR - Don't worry, consider this dataset to be as close to reality as possible
 
 The dataset is currently been put in a JSON format, hashed and then compressed - so all the best! 
 
-**The way to open the file is through the password that you received from us!**
+**The way to open the files is through the password that you received from us!**
 
 | Column                   | Value   | Description                                                              | 
 |--------------------------|---------|--------------------------------------------------------------------------| 
