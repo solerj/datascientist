@@ -1,0 +1,740 @@
+---
+title:  "Infer & Predict Gender"
+author: "John Soler"
+date:   "27 August 2018"
+output: html_document
+params:
+   passphrase: "[enter password here]"
+---
+
+This report includes a detailed description of the reasoning and results behind the apprach to answering the posed question. It is meant to serve as documentation for the Data Science Team. For a high overview of the project explained in a simpler way for less technical business users, please see the Powerpoint Presentation. 
+
+## Contents
+
+
+1. Setting up
+2. Cleaning the data
+3. Inferring the customer gender - Baseline model
+4. Feature Engineering and Normalisation (Scaling to [0,1])
+5. Inferring the customer gender - Refined model: Defining Criteria
+6. Feature Selection
+7. Inferring the customer gender - Refined model: Applying KNN
+8. Prediction Model Trained on the Inferred Gender
+9. Prediction Model Evaluation
+10. Summary
+
+
+
+##1. Setting Up
+
+The first section includes setting the seed for reproducible results, libraries, any required installs, the working directory and producing the password from the passphrase.
+
+Here is a list of libraries used:
+
+```{r setting_up, echo=FALSE, message = F, chache = TRUE}
+
+set.seed(200591)
+
+packagesNeeded <- c("jsonlite", "digest", "dplyr", "ggplot2", "pROC", "caret", "e1071", "devtools"
+                    , "cluster", "stringr", "gplots", "tcltk", "PRROC", "class", "knitr")
+
+for (i in packagesNeeded){
+  if(!(i %in% installed.packages())){
+    install.packages(i)
+  }
+  library(i, character.only = T)
+}
+
+if(!("keras" %in% installed.packages())){
+  devtools::install_github("rstudio/keras")
+  }
+library(keras)
+install_keras()
+use_session_with_seed(200591)
+
+c(packagesNeeded, "keras")
+```
+
+
+```{r user_inputs, echo=FALSE, message = F, chache = TRUE}
+
+dir_ <- file.choose()
+passphrase <- params$passphrase
+unhashed_passphrase <- digest(passphrase, algo="sha256", serialize=FALSE)
+
+dir <- str_sub(dir_, 1, (str_length(dir_)-14))
+setwd(dir)
+
+write.table(unhashed_passphrase, "PASSWORD.txt", quote = F, row.names = F, col.names = F)
+mywait <- function() {
+  tt <- tktoplevel()
+  tkpack( tkbutton(tt, text='Extract the folder test_data.zip using the unhashed passphrase (see step 5 in the READ_ME file). Only once this is done, [CLICK HERE]', command=function()tkdestroy(tt)),
+          side='bottom')
+  tkbind(tt,'<Key>', function()tkdestroy(tt) )
+  
+  tkwait.window(tt)
+}
+mywait()
+```
+
+
+##2. Cleaning the data
+
+The question for Stage 2 mentions that there are two corrupted columns. I suspect that these are:
+
+
+* _days_since_last_order_:  This was probably in hours, not in days
+* _average_discount_used_:  This needed to be divided by 10,000 in order to be used
+
+There were other columns which raised questions:
+
+
+* There are two columns in the data which are not listed in the description: _redpen discount used_ & _coupon discount applied_.
+* I noticed that the sum of the individual item types (e.g. _wapp items_, _wftw items_, etc.) do not add up to _items_. I've tried several combinations, also trying to guess if the unisex items are counted twice within the item types.
+* There are instances where there are more returns or cancels than orders.
+* I see that the columns: _wacc items_ and _macc items_ are identical.
+* The payments columns are binary, yet the description says that these columns should represent the number of orders made with that payment type. I assumed that these are binary columns indicating whether a payment type was used or not.
+* The column _used coupons_ included some NA values. It would have been ideal to replace these using, for example, a simple regression model based on other columns. However for this purpose I simply replaced the NAs by zeros and made sure to include this column only to crete another more robust feature.
+
+The complete set of checks is presented in the table below.
+
+
+```{r clean, echo=FALSE, cache=TRUE, message = F}
+
+test_data <- fromJSON(txt = "test_data\\data.json")
+
+# dim(test_data)
+# colnames(test_data)
+# str(test_data)
+test_data$is_newsletter_subscriber  <- (test_data$is_newsletter_subscriber == 'Y')*1
+# summary(test_data)
+test_data$days_since_last_order     <- test_data$days_since_last_order / 24
+test_data$average_discount_used     <- test_data$average_discount_used / 10000
+
+# x <-  test_data[with(test_data, cc_payments + paypal_payments + afterpay_payments + apple_payments) > 1, ]
+
+# Checking for duplicate rows
+  total_number_of_rows          <- nrow(test_data)
+  unique_number_of_rows         <- nrow(unique(test_data))
+  unique_number_of_customer_ids <- length(unique(test_data$customer_id))
+  y000 <- total_number_of_rows == unique_number_of_rows & unique_number_of_rows == unique_number_of_customer_ids
+  #c(total_number_of_rows, unique_number_of_rows, unique_number_of_customer_ids)
+  
+# I noticed that summaries for wacc and macc are identical 
+  y00 <- test_data[test_data$wacc_items == test_data$macc_items,]
+# Checking that items by gender add up to total items 
+  y01 <- test_data[with(test_data, female_items + male_items + unisex_items) != test_data$items,]
+# Checking that orders by device add up to total orders
+  y02 <- test_data[with(test_data, msite_orders + desktop_orders + other_device_orders + ios_orders + android_orders) != test_data$orders,]
+# Checking that orders by address add up to total orders
+  y03 <- test_data[with(test_data, work_orders + home_orders + parcelpoint_orders + other_collection_orders) != test_data$orders,]
+# Checking that items by type add up to total items
+  y04 <- test_data[with(test_data, wapp_items + wftw_items + mapp_items + wacc_items + macc_items
+                                + mftw_items + wspt_items + mspt_items + curvy_items + sacc_items) != test_data$items,]
+  y04w <- test_data[with(test_data, wapp_items + wftw_items + wacc_items + wspt_items + curvy_items + sacc_items) != 
+                      with(test_data, female_items + unisex_items),]
+  y04m <- test_data[with(test_data, mapp_items + mftw_items + macc_items + mspt_items) !=
+                      test_data$male_items,]
+# Checking that there are always less orders than items
+  y05 <- test_data[test_data$orders > test_data$items,]
+# Checking that days since first order is always more than days since last order
+  y06 <- test_data[test_data$days_since_first_order < test_data$days_since_last_order,]
+# Checking that payments by type add up to total orders
+  y07 <- test_data[with(test_data, cc_payments + paypal_payments + afterpay_payments + apple_payments) != test_data$orders, ]
+# Does every customer have at least one payment method?
+  y08 <- test_data[with(test_data, cc_payments + paypal_payments + afterpay_payments + apple_payments) == 0, ]
+# Checking that there is no revenue whenever avg discount used is 100%
+  y09 <- test_data[test_data$average_discount_used == 1.0 & test_data$revenue > 0, ]
+# Checking revenues are positive whenever the avg discount used is less than 100%
+  y10 <- test_data[test_data$average_discount_used < 1.0 & test_data$revenue <= 0, ]
+# Checking that orders > returns
+  y11 <- test_data[test_data$orders < test_data$returns, ]
+# Checking that orders > cancels
+  y12 <- test_data[test_data$orders < test_data$cancels, ]
+
+  
+summaryClean <- as.data.frame(rbind(
+  c("duplicate rows", y000),
+  c("wacc_items is not identical to macc_items", nrow(y00)==0),
+  c("items by gender add up to total items", nrow(y01)==0),
+  c("orders by device add up to total orders", nrow(y02)==0),
+  c("orders by address add up to total orders", nrow(y03)==0),
+  c("items by type add up to total items", nrow(y04)==0),
+  c("there are always less orders than items", nrow(y05)==0),
+  c("days since days since first order >= days since last order", nrow(y06)==0),
+  c("payments by type add up to total orders", nrow(y07)==0),
+  c("every customer has at least one payment method", nrow(y08)==0),
+  c("there is no revenue whenever avg discount used is 100%", nrow(y09)==0),
+  c("revenues are +ve whenever the avg discount used is < 100%", nrow(y10)==0),
+  c("orders > returns", nrow(y11)==0),
+  c("orders > cancels", nrow(y12)==0)
+))
+colnames(summaryClean) <- c("test", "Pass")
+  
+kable(summaryClean, caption = "Summary of data reconciliation tests")
+  
+test_data <- unique(test_data)
+```
+
+
+In the table above, each test having a "FALSE" means that there is some issue with the reconciliation. I did not investigate each of these into too much detail, but I tried to work around them in the _Feature Engineering and Normalising_ section of the code.
+
+
+##3. Inferring the customer gender - Baseline model
+
+A simple baseline model was created to give a first quick labelling of the customers' gender. This was done to serve as a reference - to make sure that the more complex models to come still produce results in line with intuition.
+
+The Baseline Model chosen is:
+
+__If more than 50% of a customer's purchased items are male items, than the customer is male__
+
+
+The histogram below shows the distribution of the _percentage male_ metric, i.e. the number of male items purchased as a percentage of the total items purchased by a customer. There are two things to note here:
+
+
+* There is a strong polarity in the data, i.e. the good majority of customers either purchase male items __only__  or purchase female/unisex items __only__.
+* There is an imbalance in the data set - there are more "female only" shoppers than "male only" shoppers. This is important to keep in mind especially when evaluating the Prediction Models later on.
+
+
+```{r baseline_infer_gender, echo=FALSE, cache=TRUE, message = F}
+
+test_data$perc_male <- with(test_data, male_items / (items))
+hist(test_data$perc_male)
+test_data$isMale_baseline <- (test_data$perc_male > 0.5)*1
+
+summaryBaseline <- as.data.frame(table(test_data[,c("isMale_baseline")]))
+colnames(summaryBaseline) <- c("isMale_flag_from_Baseline_Model", "Number_of_Customers")
+summaryBaseline$Percentage_of_Customers <- with(summaryBaseline, Number_of_Customers / sum(Number_of_Customers))
+
+kable(summaryBaseline, caption = "Table of results for the Baseline Model to Infer Gender")
+
+```
+
+##4. Feature Engineering and Normalisation
+
+Quite a few new features were engineered; mostly ratios such as _revenue per order_ or distinct counts such as _distinct count of payment methods used_. Here is a list of all the features including both the provided and the engineered:
+
+```{r feature_engineering, echo=FALSE, cache=TRUE, message = F}
+
+test_data$perc_unisex <- with(test_data, unisex_items / items)
+test_data$days_between_first_last_order <- with(test_data, days_since_first_order - days_since_last_order)
+test_data$orders_per_day     <- with(test_data,  orders / (days_between_first_last_order+1))
+test_data$items_per_order    <- with(test_data, items / orders)
+test_data$revenue_per_item   <- with(test_data, revenue / items)
+test_data$revenue_per_order  <- with(test_data, revenue / orders)
+test_data$total_item_types   <- pmax(test_data$items,
+                                     with(test_data, wapp_items + wftw_items + mapp_items + wacc_items + macc_items
+                                     + mftw_items + wspt_items + mspt_items + curvy_items + sacc_items))
+
+test_data$perc_app     <- with(test_data, (wapp_items + curvy_items + mapp_items)/total_item_types)
+test_data$perc_ftw     <- with(test_data, (wftw_items + mftw_items)/total_item_types)
+test_data$perc_acc     <- with(test_data, (wacc_items + macc_items + sacc_items)/total_item_types)
+test_data$perc_spt     <- with(test_data, (wspt_items + mspt_items + sacc_items)/total_item_types)
+
+test_data$distinct_item_types <- with(test_data,
+                                      ceiling(perc_app) + ceiling(perc_ftw)
+                                      + ceiling(perc_acc) + ceiling(perc_spt)) / 4
+
+test_data$perc_cancels <- with(test_data, cancels / orders)
+test_data$perc_cancels[test_data$perc_cancels > 1] <- rep(1.0, sum(test_data$perc_cancels > 1))
+test_data$perc_returns <- with(test_data, returns / orders)
+test_data$perc_returns[test_data$perc_returns > 1] <- rep(1.0, sum(test_data$perc_returns > 1))
+test_data$perc_vouchers <- with(test_data, vouchers / items)
+
+test_data$multiple_payments <- with(test_data, cc_payments + paypal_payments
+                                    + afterpay_payments + apple_payments)
+test_data$multiple_payments <- test_data$multiple_payments / 5
+
+test_data$perc_mobile <- with(test_data, (msite_orders + ios_orders + android_orders) / orders)
+test_data$perc_work   <- with(test_data, work_orders / orders)
+test_data$perc_home   <- with(test_data, home_orders / orders)
+test_data$perc_ppt    <- with(test_data, parcelpoint_orders / orders)
+test_data$perc_oColl  <- with(test_data, other_collection_orders / orders)
+
+
+test_data$used_coupons <- (test_data$coupon_discount_applied > 0)*1
+test_data$used_coupons[is.na(test_data$used_coupons)] <- rep(0, sum(is.na(test_data$used_coupons)))
+
+test_data$used_redpen <- (test_data$redpen_discount_used > 0)*1
+
+
+colnames(test_data)
+```
+
+
+Of these, an initial selection of features was made. At this point, the excluded features were ones which are obviously correlated to another feature, or ones which were considered as not robust enough.
+
+Next, it was made sure that all features were scaled to the range [0,1]. Most of the features were already percentages in the desired range, so those were untouched. For the ones that had larger ranges, a sigmoid function was applied.
+
+Let $x$ be the original column and let $y$ be the normalised column. Then the normalising equation is in the form:
+
+$y = ({1}/({1+x}))^p$
+
+where $p$ is selected such that the median of the particular column is normalised to $0.5$.
+
+```{r feature_scaling_and_initial_selection, echo=FALSE, cache=TRUE, message = F}
+
+select_candidate_features <- c("isMale_baseline", "perc_male", "perc_unisex", "is_newsletter_subscriber"
+                               , "orders", "items", "different_addresses"
+                               , "shipping_addresses", "devices", "cc_payments", "paypal_payments"
+                               , "afterpay_payments", "apple_payments", "average_discount_onoffer"
+                               , "average_discount_used", "revenue", "days_between_first_last_order"
+                               , "orders_per_day", "items_per_order", "revenue_per_item"
+                               , "revenue_per_order", "perc_app", "perc_ftw", "perc_acc", "perc_spt"
+                               , "distinct_item_types", "perc_cancels", "perc_returns", "perc_vouchers"
+                               , "multiple_payments", "perc_mobile", "perc_work", "perc_home"
+                               , "perc_ppt", "perc_oColl", "used_redpen")
+
+data_ <- test_data[,select_candidate_features]
+
+to_normalise <- colnames(data_[,(lapply(data_, max)>1)])
+
+for (i in to_normalise){
+  colMedian  <- median(data_[,i])
+  scalePower <- log(0.5)/log(colMedian/(1+colMedian))
+  data_[,i]  <- (data_[,i]/(1+data_[,i]))^scalePower
+}
+```
+
+
+##5. Inferring the customer gender - Refined model: Defining Criteria
+
+After having defined the Baseline model and taken key statistics around it, here is an attempt to take that a step further. The idea is to:
+
+1. First select a subset of customers whose gender we can be quite confident of; the __Core Labelled Subset__
+2. Use that subset as basis to infer the gender of the rest of the customers
+
+Some quick research was carried out in order to understand better the difference between male and female shopping behaviour. Here are some links which were found useful:
+
+* http://blog.boldmetrics.com/3-differences-between-the-way-men-and-women-shop-for-clothes/
+* https://ecommerce-platforms.com/ecommerce-news/infographic-online-shopping-habits-men-vs-women
+* https://www.paymentsense.co.uk/blog/men-vs-women-online/
+* https://www.get.com/blog/infographic-who-rules-online-shopping-men-or-women/
+* https://medium.com/@rodgerdwightbuyvoets/differences-between-how-men-and-women-do-online-shopping-6e590e54d06f
+
+Based on this research it was decided to select the __Core Labelled Subset__ using 3 criteria:
+
+
+1. The percentage of male items from the total items - it is assumed that males tend to purchase more male items
+2. A measure of the discounts used - the hypothesis is that females look for discounts more than males do
+3. A measure of the order returns/cancellations - the hypothesis is that females return/cancel orders more than males do
+
+Indeed, the table below indicates that there is probably truth in the hypothesis i.e. that females do look for discounts more than males and females do return/cancel orders more than males. Time permitting, statistical tests should be run to support these claims.
+
+
+```{r refined_inferred_gender_part1, echo=FALSE, cache=TRUE, message = F}
+
+data_$test_discount <- with(test_data,
+                                is_newsletter_subscriber + ceiling(perc_vouchers) + ceiling(used_coupons) + ceiling(used_redpen)
+                                + ceiling(average_discount_onoffer) + ceiling(average_discount_used)) / 6
+
+data_$test_ret_cancel <- (with(test_data, perc_returns + perc_cancels)/2)
+
+criteriaCols <- c("isMale_baseline", "perc_male", "test_discount", "test_ret_cancel")
+
+#colnames(data_)
+#summary(test_data)
+#x <- head(test_data, 25)
+
+data_criterias <- data_[,criteriaCols]
+checkingCriteria <- data_criterias %>%
+  group_by(isMale_baseline) %>%
+  summarise_all(mean)
+colnames(data_criterias) <- c("isMale_baseline", "perc_male", "discount_measure", "return_cancel_measure")
+
+
+kable(checkingCriteria, caption = "Summary of results for the three selected criteria")
+
+#hist(data_$perc_male[data_$isMale_baseline==1])
+#
+#Ftest <- var.test(data_$perc_male[data_$isMale_baseline==0],
+#                  data_$perc_male[data_$isMale_baseline==1],
+#                  alternative = "two.sided")
+#Ftest$p.value
+
+
+t_m_isMale   <- quantile(data_criterias$perc_male[data_criterias$isMale_baseline==1], probs = 0.5)
+t_m_discount <- quantile(data_criterias$discount_measure[data_criterias$isMale_baseline==1], probs = 0.5)
+t_m_ret_can  <- quantile(data_criterias$return_cancel_measure[data_criterias$isMale_baseline==1], probs = 0.5)
+
+data_$probab_male <- (with(data_, (perc_male >= t_m_isMale) +
+                            (test_discount < t_m_discount) +
+                            (test_ret_cancel <= t_m_ret_can)) >= 3)*1
+
+
+t_f_isMale   <- quantile(data_criterias$perc_male[data_criterias$isMale_baseline==0], probs = 0.5)
+t_f_discount <- quantile(data_criterias$discount_measure[data_criterias$isMale_baseline==0], probs = 0.5)
+t_f_ret_can  <- quantile(data_criterias$return_cancel_measure[data_criterias$isMale_baseline==0], probs = 0.5)
+
+data_$probab_female <- (with(data_, (perc_male <= t_f_isMale) +
+                             (test_discount >= t_f_discount) +
+                             (test_ret_cancel > t_f_ret_can)) >= 3)*1
+
+
+```
+
+The table below shows the exact thresholds for each criteria as well as the number of customers per gender within the Core Labelled Subset. There are roughly 10,000 customers in this subset, which is about 20% of the whole data set. 
+
+```{r refined_inferred_gender_part1_summary, echo=FALSE, cache=TRUE, message = F}
+criteriaSummary <- as.data.frame(rbind(
+                                 c("Males"
+                                   , paste("=", t_m_isMale)
+                                   , paste("<",  t_m_discount)
+                                   , paste("=", t_m_ret_can)
+                                   , sum(data_$probab_male))
+                                 , c("Females"
+                                   , paste("=", t_f_isMale)
+                                   , paste(">=",  t_f_discount)
+                                   , paste(">", t_f_ret_can)
+                                   , sum(data_$probab_female))
+))
+colnames(criteriaSummary) <- c("Core_Labelled_Subset", "perc_male_criteria"
+                               , "discount_measure_criteria", "return_cancel_measure_criteria"
+                               , "Number of Customers")
+kable(criteriaSummary, caption = "Core Labelled Subset Summary")
+
+
+# Checks
+  # sum(data_$probab_female)/(nrow(data_)-sum(data_$isMale_baseline))
+  # sum(data_$probab_male & data_$probab_female)
+  # 1-(sum(data_$probab_male)+sum(data_$probab_female))/nrow(data_)
+  # sum(data_$probab_male)/nrow(data_)
+  # sum(data_$probab_female)/nrow(data_)
+
+```
+
+
+##6. Feature Selection
+
+Now we proceed to feature selection. We do this now in anticipation of applying KNN to get the genders of the remaining customers (~80%) in the data set. More details on this in the following section.
+
+Since time was limited, feature selection (or rather, removal) was done based on the correlation matrix, using both the Pearson and Spearman methods. The correlation matrix was computed and features were removed on the basis of collerations of more than 0.75 (or less than -0.75) and by inspection of the heatmap.
+
+Plotted below are the heatmaps of the correlation matrices before and after feature selection.
+
+Before Feature Selection:
+
+```{r feature_selection, echo=FALSE, cache=TRUE, message = F}
+
+data <- data_[, !(colnames(data_) %in% c("isMale_baseline", "test_discount", "test_ret_cancel", "probab_male", "probab_female"))]
+
+heatmap_pearson_before <- heatmap(cor(data, method = "pearson"))
+#heatmap_spearman <- heatmap(cor(data, method = "spearman"))
+#heatmap_pearson_noDendo <- heatmap.2(cor(data), dendrogram='none', Rowv=FALSE, Colv=FALSE,trace='none')
+
+
+t <- 0.75
+t_corr <- c()
+methods <- c("pearson", "spearman")
+for (k in methods){
+  corr <- cor(data, method = "pearson")
+  for (i in 1:nrow(corr)){
+    for (j in 1:ncol(corr)){
+      if (abs(corr[i,j])>t & corr[i,j]<1){
+        t_corr <- rbind(t_corr, c(colnames(corr)[j], corr[i,j]))
+      }
+    }
+  }
+}
+# unique(t_corr[,1])
+
+
+data <- data[, !(colnames(data) %in% c("average_discount_onoffer", "used_redpen"))]
+data <- data[, !(colnames(data) %in% c("revenue"))]
+data <- data[, !(colnames(data) %in% c("revenue_per_order"))]
+data <- data[, !(colnames(data) %in% c("paypal_payments", "perc_oColl"))]
+data <- data[, !(colnames(data) %in% c("perc_app"))]
+data <- data[, !(colnames(data) %in% c("orders"))]
+data <- data[, !(colnames(data) %in% c("orders_per_day", "days_between_first_last_order"))]
+
+```
+
+
+After feature selection:
+
+```{r feature_selection_heatmap_2, echo=FALSE, cache=TRUE, message = F}
+heatmap_pearson_after <- heatmap(cor(data, method = "pearson"))
+
+```
+
+
+Here is the final list of selected features to be used for the next stages:
+```{r feature_selection_final, echo=FALSE, cache=TRUE, message = F}
+final_features <- as.data.frame(colnames(data))
+colnames(final_features) <- c("Feature")
+final_features$Description <- c(
+  "Percentage of male items purchased being male items"
+  , "Percentage of items purchased being unisex items"
+  , "Flag for a newsletter subscriber"
+  , "Normalised number of items purchased"
+  , "Normalised number of times a different billing and shipping address was used"
+  , "Normalised number of different shipping addresses used"
+  , "Normalised number of unique devices used"
+  , "Flag for a credit card payment user"
+  , "Flag for an Afterpay payment user"
+  , "Flag for an apple payment user"
+  , "Average discount rate of items typically purchased"
+  , "Normalised number of items purchased per order"
+  , "Normalised total revenue per item purchased"
+  , "Number of footwear items purchased as percentage of total items purchased"
+  , "Number of accessory items purchased as percentage of total items purchased"
+  , "Number of sport items purchased as percentage of total items purchased"
+  , "Normalised number of distinct item types purchased"
+  , "Percentage of orders cancelled"
+  , "Percentage of orders returned"
+  , "Number of vouchers used as percentage of total items purchased"
+  , "Normalised number of different payment methods used"
+  , "Percentage of orders via mobile (Msite, Android and iOS)"
+  , "Percentage of orders delivered to work place"
+  , "Percentage of orders delivered to home"
+  , "Percentage of orders delivered to a parcel point"
+)
+
+final_features$Meaning_in_real_world <- c(
+  "The degree of preference/need for male items"
+  , "The lack of preference/need for gender-specific items"
+  , "Whether or not the customer is willing to hear about new products/promotions"
+  , "The Frequency aspect of the customer's purchase behaviour"
+  , "A high number here represents customers who either shop for someone else or are usually not home"
+  , "A high number here represents customers who shop for several other people or their job/lifestyle requires them to move around"
+  , "A high number here suggests that the customer takes the opportunity to shop during different times of the day and from different locations"
+  , "Shows customers who trusts the website enough to pay with their credit card"
+  , "Could suggest that a customer is tight on budget yet stll willing to purchase exactly what s/he wants"
+  , "Flag for an apple payment user"
+  , "The degree at which the customer looks for deals - could be either to save money or to buy more expensive items and an affordable price"
+  , "A low number here shows that the customer is specific in the way s/he shops - purchasing only an item that is needed at that time"
+  , "A high number here shows that the customer prefers higher quality items and has the money for it"
+  , "The customer's interest towards footware"
+  , "The customer's interest towards accessories"
+  , "The customer's interest towards sport itmes"
+  , "The customer's variety of interest"
+  , "A high number here could suggest that the customer is shopping on impulse and easily changes his/her mind"
+  , "A high number here could suggest that the customer is either not attentive to detail when shopping, or that s/he likes to try on a range items/sizes before s/he makes a final decision"
+  , "A high number here suggests that the customer is possibly even willing to wait for a voucher before s/he shops. A low number suggests that the customer is more interested in purchasing what s/he wants at the time that s/he wants it, with less concern about the price"
+  , "Normalised number of different payment methods used"
+  , "A high number here may suggest that the customer enjoys shopping on the move. A low number suggests that more shopping is done primarily on desktop, so requireing more attention and possibly with several tabs opened. Alternatively it could simply reflect the type of device available to the user"
+  , "A high percentage here suggests that the customer has a job and there is no one home to accept the delivery"
+  , "A high percentage here suggests that the customer is typically at home or there is someone home to accept the delivery"
+  , "A high percentage here suggests that the customer is typically not at home and not in a fixed office"
+)
+
+kable(final_features)
+```
+
+##7. Inferring the customer gender - Refined model: Applying KNN
+
+
+The K-Nearest-Neighbours (KNN) algorithm was chosen to propagate the inferred gender from the Core Labelled Subset. This algorithm, being very straight forward and easy to explain, was considered as a good option to go with - it gives practically full control and transpacency about the inference methodology.
+
+From the 10,000 customers in the Core Labelled Subset, 10 samples of 3,000 at a time where chosen on which to apply KNN. It was made sure that each smaple contained a balanced amount of males and females from the Core Labelled Subset. The "K" was also varied from 1 to 5 and the average was calculated at the end, so make sure that the algorythm is not sensitive to any particular value.
+
+Below is a summary of the results after the KNN was applied and gender was inferred for the remaining customers in the data.
+
+
+```{r refined_inferred_gender_part2, echo=FALSE, cache=TRUE, message = F}
+
+data_$probab_gender <- rep("to_infer", nrow(data_))
+data_$probab_gender[data_$probab_male==1]   <- rep("m", sum(data_$probab_male==1))
+data_$probab_gender[data_$probab_female==1] <- rep("f", sum(data_$probab_female==1))
+data_$probab_gender <- as.factor(data_$probab_gender)
+
+rows_to_infer <- as.character(data_$probab_gender)=="to_infer"
+labels <- factor(c(rep("m", 1500), rep("f", 1500)))
+for (i in 1:10){
+  sampleMale   <- sample_n(data[as.character(data_$probab_gender)=="m",], 1500)
+  sampleFemale <- sample_n(data[as.character(data_$probab_gender)=="f",], 1500)
+  sampleTotal <- rbind(sampleMale, sampleFemale)
+  #print(mean(sampleTotal$perc_spt))
+  for (k in 1:5){
+    knn_iter <- knn(sampleTotal, data[rows_to_infer,], labels)
+    data_ <- cbind(data_, data_$probab_gender)
+    data_[rows_to_infer,ncol(data_)] <- knn_iter
+    data_[, ncol(data_)] <-  (data_[, ncol(data_)] == "m")*1
+    colnames(data_)[ncol(data_)]     <- paste0("knn_", i, "_", k)
+  }
+}
+
+
+data_$isMale_inferred_probab <- rowMeans(data_[,grep("knn", colnames(data_))])
+data_$isMale_inferred        <- as.factor((data_$isMale_inferred_probab > 0.5)*1)
+
+KNN_inferred_gender_summary <- as.data.frame(table(data_$isMale_inferred))
+colnames(KNN_inferred_gender_summary) <- c("isMale_inferred_refined_model", "Number_of_Customers")
+KNN_inferred_gender_summary$Percentage_of_base <- with(KNN_inferred_gender_summary,
+                                                       Number_of_Customers / sum(Number_of_Customers))
+kable(KNN_inferred_gender_summary)
+
+perc_diff_fromBaseline <- sum(data_$isMale_baseline != data_$isMale_inferred)/nrow(data_)
+```
+
+It is important to note that the inferred gender from the Refined Model differs from those of the Baseline Model by only `r round(perc_diff_fromBaseline*100,1)`%. This is good news because the Baseline Model should already have been a good start, so a redical change by the Refined Model would have raised questions. The fact that the male/female split has not changed much either is also a positive sign. These figures could suggest that the Refined Model is indeed a "refinement".
+
+
+##8. Prediction Model Trained on the Inferred Gender
+
+Now that the gender has been inferred for the whole dataset, we can use this label to train a Prediction Model for future/other customers. KNN itself would be one option here again, but to display a variety of techniques for the purpose of this exercise, it was chosen to try out:
+
+* a Logistic Regression Model,
+* SVM models with different kernels, and
+* a Neural Network
+
+Little to no time was spent on fine-tuning the parameters of each algorithm, simply because the time was limited.
+
+
+```{r model_building, echo=FALSE, cache=TRUE, message = F}
+
+data$isMale_inferred <- data_$isMale_inferred
+
+data_train_sample <- sample(nrow(data), round(nrow(data)*0.9, 0))
+data_train <- data[data_train_sample,]
+rownames(data_train) <- NULL
+data_test  <- data[-data_train_sample,]
+rownames(data_test) <- NULL
+
+fitLog <- glm(isMale_inferred ~ ., family = binomial, data = data_train)
+# summary(fitLog)
+# fitLog$coefficients
+
+
+predictionsL <- predict(fitLog, data_test, type = "response")
+roc_objL <- roc(data_test$isMale_inferred, predictionsL)
+optimal_thresholdL <- min(abs(coords(roc_objL, "best", ret = "threshold")))
+prL <- pr.curve(scores.class0 = predictionsL[data_test$isMale_inferred == 1]
+                , scores.class1 = predictionsL[data_test$isMale_inferred == 0]
+                , curve = T)
+
+
+fitSVM2 <- svm(isMale_inferred ~ ., data = data_train, scale = F, type = "C-classification"
+              , kernel = "polynomial", degree = 2, probability = T)
+predictionsS2 <- predict(fitSVM2, data_test, decision.values = T, probability = T)
+predictionsS2 <- as.numeric(attr(predictionsS2, "decision.values"))
+roc_objS2 <- roc(data_test$isMale_inferred, predictionsS2)
+optimal_thresholdS2 <- min(abs(coords(roc_objS2, "best", ret = "threshold")))
+prS2 <- pr.curve(scores.class0 = predictionsS2[data_test$isMale_inferred == 0]
+                , scores.class1 = predictionsS2[data_test$isMale_inferred == 1]
+                , curve = T)
+
+
+fitSVM3 <- svm(isMale_inferred ~ ., data = data_train, scale = F, type = "C-classification"
+              , kernel = "polynomial", degree = 3, probability = T)
+predictionsS3 <- predict(fitSVM3, data_test, decision.values = T, probability = T)
+predictionsS3 <- as.numeric(attr(predictionsS3, "decision.values"))
+roc_objS3 <- roc(data_test$isMale_inferred, predictionsS3)
+optimal_thresholdS3 <- min(abs(coords(roc_objS3, "best", ret = "threshold")))
+prS3 <- pr.curve(scores.class0 = predictionsS3[data_test$isMale_inferred == 0]
+                , scores.class1 = predictionsS3[data_test$isMale_inferred == 1]
+                , curve = T)
+
+
+fitSVMr <- svm(isMale_inferred ~ ., data = data_train, scale = F, type = "C-classification"
+              , kernel = "radial", probability = T)
+predictionsSr <- predict(fitSVMr, data_test, decision.values = T, probability = T)
+predictionsSr <- as.numeric(attr(predictionsSr, "decision.values"))
+roc_objSr <- roc(data_test$isMale_inferred, predictionsSr)
+optimal_thresholdSr <- min(abs(coords(roc_objSr, "best", ret = "threshold")))
+prSr <- pr.curve(scores.class0 = predictionsSr[data_test$isMale_inferred == 0]
+                , scores.class1 = predictionsSr[data_test$isMale_inferred == 1]
+                , curve = T)
+
+
+dataM_train <- as.matrix(data_train)
+dimnames(dataM_train) <- NULL
+dataM_test <- as.matrix(data_test)
+dimnames(dataM_test) <- NULL
+
+model <- keras_model_sequential()
+model %>%
+  layer_dense(units = 256, activation = 'relu', input_shape = c(ncol(dataM_train)-1)) %>% 
+  layer_dropout(rate = 0.4) %>% 
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 1, activation='sigmoid')
+
+model %>% compile(
+  optimizer = 'adam', 
+  loss      = 'binary_crossentropy',
+  metrics   = c('accuracy')
+)
+
+model %>% fit(dataM_train[,1:(ncol(dataM_train)-1)]
+              , dataM_train[,ncol(dataM_train)]
+              , epochs = 25)
+predictionsN <- model %>% predict_proba(dataM_test[,1:(ncol(dataM_test)-1)])
+predictionsN <- as.numeric(predictionsN)
+
+roc_objN <- roc(dataM_test[,ncol(dataM_test)], predictionsN)
+optimal_thresholdN <- min(abs(coords(roc_objN, "best", ret = "threshold")))
+prN <- pr.curve(scores.class0 = predictionsN[data_test$isMale_inferred == 1]
+                 , scores.class1 = predictionsN[data_test$isMale_inferred == 0]
+                 , curve = T, max.compute = T)
+
+```
+
+##9. Prediction Model Evaluation
+
+The models were trained on a random sample of 90% of the whole data set, then tested and evaluated on the remaining 10%. The performance of each predictive model was assessed on the Area Under the Curve (AUC) of both the Receiver-Operating-Characteristic (ROC) curve and the Precision-Recall (PR) curve, as well as the Accuracy.
+
+Attention was given particularly to the AUC of the PR curve because the data set is not balanced. Indeed, suppose that the predictions were all "Female". In that case the Accuracy would be around 77%, which by itself looks quite fine. A similar conclusion would be drawn from the AUC of the ROC curve. However, the AUC of the PR curve should highlight that such predictions perform far from fine.
+
+
+```{r model_selection, echo=FALSE, cache=TRUE, message = F}
+
+# plot(roc_objL,  col = "blue")
+# plot(roc_objS2, add = TRUE, col = "red2")
+# plot(roc_objS3, add = TRUE, col = "red3")
+# plot(roc_objSr, add = TRUE, col = "red4")
+# plot(roc_objN,  add = TRUE, col = "green")
+
+aucSummary <- as.data.frame(rbind(
+  c("LogicsticRegression", auc(roc_objL) , prL$auc.integral),
+  c("SVM_poly_degree2"   , auc(roc_objS2), prS2$auc.integral),
+  c("SVM_poly_degree3"   , auc(roc_objS3), prS3$auc.integral),
+  c("SVM_radial"         , auc(roc_objSr), prSr$auc.integral),
+  c("NeuralNet"          , auc(roc_objN) , prN$auc.integral)
+))
+colnames(aucSummary) <- c("Algorithm", "aucROC", "aucPR")
+kable(aucSummary)
+
+```
+
+Taking into consideration the results above and the efficiency of the algorithm, it was deemed that the best performing model was the Neural Network, even though each algorithm was highly accurate. Below is the summary of the Neural Network Model performance.
+
+
+```{r best_model, echo=FALSE, cache=TRUE, message = F}
+predictionsBest <- as.factor((predictionsN > optimal_thresholdN)*1)
+confusionMatrixBest <- confusionMatrix(predictionsBest, as.factor(data_test$isMale_inferred))
+confusionMatrixBest
+```
+
+
+##10. Summary
+
+
+* The final outcome from this project is a Neural Network which predicts the gender of a customer, with an Accuracy of `r round(confusionMatrixBest$overall[1]*100,1)`% over the inferred gender
+* The Neural Network was trained on a set of customers with the inferred gender
+* The methodology to infer the gender was based on a combination of heuristics and KNN
+* Throughout the process, frequent checks against a baseline model were made to ensure consistency and relevance
+
+
+#### Recommendation for additional features
+
+
+1. Email address - to possibly extract customer name
+2. Revenue split by item type - to know the distribution of revenue across item genders
+3. Number of saved items in "Wishlist", split by type - to have an idea of the customer's potential future purchases
+4. Total time on website - research suggests that females spend more time on site
+5. Page visits per session - research suggests that females browse through more items
+
+
+#### Suggested improvements for model performance
+
+Here are just a few ideas on how the results could be improved further:
+
+
+* Further investigation is needed on the data cleaning part, to have complete reconciliations
+* The NAs need to be properly dealt with
+* Including more features, such as the 5 suggested above
+* Apply proper feature selection techniques; searching for multi-collinearity and possibly applying PCA for added insights 
+* Consulting industry experts to improve criterias for the _Core Labelled Subset_ 
+* There is definitely room for improvement by applying cross validation and tweeking the model parameters
+* Take a look at the coefficients of the Logistic Regression model - this could give some added insights on feature importance
